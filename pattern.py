@@ -4,6 +4,8 @@ import math
 class Triangle():
     def __init__(self,pts):
         self.pts=pts
+    def __str__(self):
+        return f'Triangle with points {self.pts}'
 
 class FancyDrawing(sw.Drawing):
     def __init__(self,filename,profile):
@@ -26,7 +28,7 @@ class FancyDrawing(sw.Drawing):
     def drawEqTri(self,pt,L,hx,store=None):
         if(store==None):
             store = self.shapes
-            
+
         tripts = [pt]
         dwg.drawAngLine(tripts[-1],L,(60*hx),tripts)
         dwg.drawAngLine(tripts[-1],L,(60*hx-120),tripts)
@@ -41,5 +43,8 @@ origin=(100,100)
 dwg.drawEqTri(origin,L,1)
 dwg.drawEqTri(origin,L,3)
 dwg.drawEqTri(origin,L,5)
+
+print(f'pts: {dwg.pts}')
+print(f'shapes: {dwg.shapes}')
 
 dwg.save()
