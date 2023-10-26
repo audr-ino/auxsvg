@@ -23,12 +23,15 @@ class FancyDrawing(sw.Drawing):
         self.add(line)
     
     # hexants start as normal triangle and go counterclockwise
-    def drawEqTri(self,pt,L,hx):
+    def drawEqTri(self,pt,L,hx,store=None):
+        if(store==None):
+            store = self.shapes
+            
         tripts = [pt]
         dwg.drawAngLine(tripts[-1],L,(60*hx),tripts)
         dwg.drawAngLine(tripts[-1],L,(60*hx-120),tripts)
         dwg.drawAngLine(tripts[-1],L,(60*hx+120),tripts)
-        self.shapes.append(Triangle(tripts[1:]))
+        store.append(Triangle(tripts[1:]))
 
 
 dwg = FancyDrawing('tri.svg',profile='tiny')
