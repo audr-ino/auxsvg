@@ -16,7 +16,7 @@ def len_btwn(pt1,pt2):
 def ang_btwn(pt1,pt2):
     delX = pt2[0]-pt1[0]
     delY = pt2[1]-pt1[1]
-    return todeg(math.atan(delY/delX))
+    return todeg(math.atan2(delY,delX))
 
 class Line(object):
     def __init__(self,pt1,pt2):
@@ -28,9 +28,9 @@ class Line(object):
     @classmethod
     def ang_len(cls,pt1,L,theta):
         rad = torad(theta)
-        pt2=(0,0)
-        pt2[0]=pt1[0]+L*math.cos(rad)
-        pt2[1]=pt1[1]+L*math.sin(rad)
+        pt2x=pt1[0]+L*math.cos(rad)
+        pt2y=pt1[1]+L*math.sin(rad)
+        pt2=(pt2x,pt2y)
         return cls(pt1,pt2)
     
     def x_to_y(self,x):
@@ -42,6 +42,7 @@ class Line(object):
         return y
     
     def frac_thru(self,p):
+        print(f'Doing frac_thru on line with theta: {self.theta}')
         rad = torad(self.theta)
         ptX = self.pt1[0]+p*self.L*math.cos(rad)
         ptY = self.pt1[1]+p*self.L*math.sin(rad)
@@ -53,9 +54,10 @@ class Line(object):
         dwg.add(drawn_line)
     
 class Triangle():
-    def __init__(self,pts):
+    def __init__(self,pts,innerlines=[]):
         self.pts=pts
         self.lines=[]
+        self.innerlines=innerlines
         self.lines.append(Line(pts[0],pts[1]))
         self.lines.append(Line(pts[1],pts[2]))
         self.lines.append(Line(pts[2],pts[0]))
@@ -80,10 +82,50 @@ class Triangle():
 
         return cls([pt1,pt2,pt3])
     
-    def draw(self,dwg):
+    @classmethod
+    def fillout(cls,pt,L,hx,t,theta):
+        pt1 = pt
+
+        theta_up = torad(60*hx)
+        theta_down = torad(60*hx-120)
+
+        pt2x = pt1[0]+L*math.cos(theta_up)
+        pt2y = pt1[1]+L*math.sin(theta_up)
+        pt2=(pt2x,pt2y)
+
+        pt3x = pt2[0]+L*math.cos(theta_down)
+        pt3y = pt2[1]+L*math.sin(theta_down)
+        pt3=(pt3x,pt3y)
+
+        
+        line1 = Line(pt1,pt2)
+        line2 = Line(pt2,pt3)
+        line3 = Line(pt3,pt1)
+
+        # fraction along line
+        frac = t/L
+
+        pt1f = line1.frac_thru(frac)
+        pt2f = line2.frac_thru(frac)
+        pt3f = line3.frac_thru(frac)
+
+        cut1 = Line.ang_len(pt1f,L/2,-180*hx+180+theta)
+        cut2 = Line.ang_len(pt2f,L/2,60*hx+180+theta)
+        cut3 = Line.ang_len(pt3f,L/2,-60*hx+180+theta)
+
+        return cls([pt1,pt2,pt3],innerlines=[cut1,cut2,cut3])
+    
+    def draw_outline(self,dwg):
+        # draw outline
         for i in range(3):
-            print(f'Triangle: drawing line {i}')
+            print(f'Triangle: drawing outline {i}')
             self.lines[i].draw(dwg)
+
+    def draw_innerlines(self,dwg):
+        # draw outline
+        for line in self.innerlines:
+            print(f'Triangle: drawing innerline')
+            line.draw(dwg)
 
 class FancyDrawing(sw.Drawing):
     def __init__(self,filename,profile):
@@ -99,18 +141,29 @@ class FancyDrawing(sw.Drawing):
             line.draw(self)
         for shape in self.shapes:
             print('FancyDrawing: drawing shape')
-            shape.draw(self)
-
+            shape.draw_outline(self)
+            shape.draw_innerlines(self)
+    
+    def draw_inner(self):
+        for shape in self.shapes:
+            print('FancyDrawing: drawing shape')
+            shape.draw_innerlines(self)
 
 
 L = 100
+t=10
+theta=4
 origin=(100,100)
 
 dwg = FancyDrawing('tri.svg',profile='tiny')
 
-dwg.shapes.append(Triangle.equilateral(origin,L,1))
-dwg.shapes.append(Triangle.equilateral(origin,L,3))
-dwg.shapes.append(Triangle.equilateral(origin,L,5))
+dwg.shapes.append(Triangle.fillout(origin,L,1,t,theta))
+dwg.shapes.append(Triangle.fillout(origin,L,2,t,theta))
+dwg.shapes.append(Triangle.fillout(origin,L,3,t,theta))
+dwg.shapes.append(Triangle.fillout(origin,L,4,t,theta))
+dwg.shapes.append(Triangle.fillout(origin,L,5,t,theta))
+dwg.shapes.append(Triangle.fillout(origin,L,6,t,theta))
+
 
 dwg.draw()
 dwg.save()
