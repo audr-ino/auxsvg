@@ -1,6 +1,12 @@
 import svgwrite as sw
 import math
 
+HINGE_T = 10
+L = 100
+t=10
+theta=10
+origin=(100,100)
+
 def torad(deg):
     return deg * math.pi/180
 
@@ -24,6 +30,11 @@ class Line(object):
         self.pt2 = pt2
         self.L = len_btwn(pt1,pt2)
         self.theta = ang_btwn(pt1,pt2)
+        try:
+            self.m  = (pt2[1]-pt1[1])/(pt2[0]-pt1[0])
+        except ZeroDivisionError:
+            self.m = float('inf')
+        self.b = pt1[1]-self.m*pt1[0]
 
     @classmethod
     def ang_len(cls,pt1,L,theta):
@@ -34,11 +45,7 @@ class Line(object):
         return cls(pt1,pt2)
     
     def x_to_y(self,x):
-        rad = torad(self.theta)
-        m = math.tan(rad)
-        xo = self.pt1[0]
-        yo = self.pt1[1]
-        y = m*(x-xo)+yo
+        y = self.m*x+self.b
         return y
     
     def frac_thru(self,p):
@@ -47,6 +54,32 @@ class Line(object):
         ptX = self.pt1[0]+p*self.L*math.cos(rad)
         ptY = self.pt1[1]+p*self.L*math.sin(rad)
         return (ptX,ptY)
+    
+    def intersect(self,line):
+        # parallel or overlapping
+        if(self.m==line.m):
+            return None
+        elif(self.m==float('inf')):
+            x = self.pt1[0]
+            y = line.x_to_y(x)
+            return (x,y)
+        elif(line.m==float('inf')):
+            x = line.pt1[0]
+            y = self.x_to_y(x)
+            return (x,y)
+        else:
+            x = (self.b-line.b)/(line.m-self.m)
+            y = self.x_to_y(x)
+            return (x,y)
+
+    def shorten(self,cut):
+        # anchors on pt1 and shortens where pt2 is
+        rad = torad(self.theta)
+        new_L = self.L-cut
+        pt2x = self.pt1[0]+new_L*math.cos(rad)
+        pt2y = self.pt1[1]+new_L*math.sin(rad)
+        self.L = new_L
+        self.pt2 = (pt2x,pt2y)
 
     def draw(self,dwg):
         print('Line: drawing line, actually in svg')
@@ -118,9 +151,25 @@ class Triangle():
         pt2f = line2.frac_thru(frac)
         pt3f = line3.frac_thru(frac)
 
-        cut1 = Line.ang_len(pt1f,L/2,angs[0])
-        cut2 = Line.ang_len(pt2f,L/2,angs[1])
-        cut3 = Line.ang_len(pt3f,L/2,angs[2])
+        cut1 = Line.ang_len(pt1f,L,angs[0])
+        cut2 = Line.ang_len(pt2f,L,angs[1])
+        cut3 = Line.ang_len(pt3f,L,angs[2])
+
+        # intersections with each other
+
+        end1 = cut1.intersect(cut3)
+        end2 = cut2.intersect(cut1)
+        end3 = cut3.intersect(cut2)
+
+        # update cuts
+
+        cut1 = Line(pt1f,end1)
+        cut2 = Line(pt2f,end2)
+        cut3 = Line(pt3f,end3)
+
+        cut1.shorten(HINGE_T)
+        cut2.shorten(HINGE_T)
+        cut3.shorten(HINGE_T)
 
         return cls([pt1,pt2,pt3],innerlines=[cut1,cut2,cut3])
     
@@ -158,18 +207,12 @@ class FancyDrawing(sw.Drawing):
             print('FancyDrawing: drawing shape')
             shape.draw_innerlines(self)
 
-
-L = 100
-t=10
-theta=10
-origin=(100,100)
-
 dwg = FancyDrawing('tri.svg',profile='tiny')
 
 for i in range(1,7):
     dwg.shapes.append(Triangle.fillout(origin,L,i,t,theta))
 
 
-dwg.draw_inner()
+dwg.draw()
 dwg.save()
 
