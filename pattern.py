@@ -99,37 +99,28 @@ class Triangle():
 
         # if hx is even, inner triange rotates ccw
         if(hx%2==0):
-            line1 = Line(pt1,pt3)
-            line2 = Line(pt3,pt2)
-            line3 = Line(pt2,pt1)
-
-            # fraction along line
-            frac = t/L
-
-            pt1f = line1.frac_thru(frac)
-            pt2f = line2.frac_thru(frac)
-            pt3f = line3.frac_thru(frac)
-
-            cut1 = Line.ang_len(pt1f,L/2,0+60*hx-theta)
-            cut2 = Line.ang_len(pt2f,L/2,120+60*hx-theta)
-            cut3 = Line.ang_len(pt3f,L/2,240+60*hx-theta)
+            pt_order = [pt1,pt3,pt2]
+            angs = [0+60*hx-theta,120+60*hx-theta,240+60*hx-theta]
 
         # if hx is odd, inner triangle rotates cw
         else:
-            line1 = Line(pt1,pt2)
-            line2 = Line(pt2,pt3)
-            line3 = Line(pt3,pt1)
+            pt_order = [pt1,pt2,pt3]
+            angs = [-60+60*hx+theta,180+60*hx+theta,60+60*hx+theta]
 
-            # fraction along line
-            frac = t/L
+        line1 = Line(pt_order[0],pt_order[1])
+        line2 = Line(pt_order[1],pt_order[2])
+        line3 = Line(pt_order[2],pt_order[0])
 
-            pt1f = line1.frac_thru(frac)
-            pt2f = line2.frac_thru(frac)
-            pt3f = line3.frac_thru(frac)
+        # fraction along line
+        frac = t/L
 
-            cut1 = Line.ang_len(pt1f,L/2,-60+60*hx+theta)
-            cut2 = Line.ang_len(pt2f,L/2,180+60*hx+theta)
-            cut3 = Line.ang_len(pt3f,L/2,60+60*hx+theta)
+        pt1f = line1.frac_thru(frac)
+        pt2f = line2.frac_thru(frac)
+        pt3f = line3.frac_thru(frac)
+
+        cut1 = Line.ang_len(pt1f,L/2,angs[0])
+        cut2 = Line.ang_len(pt2f,L/2,angs[1])
+        cut3 = Line.ang_len(pt3f,L/2,angs[2])
 
         return cls([pt1,pt2,pt3],innerlines=[cut1,cut2,cut3])
     
