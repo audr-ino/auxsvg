@@ -4,8 +4,8 @@ import math
 # units in tenth of mm
 HINGE_T = 5
 L = 150
-t=10
-theta=10
+t=30
+theta=-5
 origin=(200,200)
 
 def torad(deg):
@@ -208,7 +208,7 @@ class FancyDrawing(sw.Drawing):
             print('FancyDrawing: drawing shape')
             shape.draw_innerlines(self)
 
-dwg = FancyDrawing('tri.svg',profile='tiny')
+dwg = FancyDrawing(f'L{L}_t{t}_theta{theta}_cell.svg',profile='tiny')
 
 for i in range(1,7):
     dwg.shapes.append(Triangle.fillout(origin,L,i,t,theta))
