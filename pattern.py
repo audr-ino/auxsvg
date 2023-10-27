@@ -1,11 +1,12 @@
 import svgwrite as sw
 import math
 
-HINGE_T = 10
-L = 100
+# units in tenth of mm
+HINGE_T = 5
+L = 150
 t=10
 theta=10
-origin=(100,100)
+origin=(200,200)
 
 def torad(deg):
     return deg * math.pi/180
