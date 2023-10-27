@@ -4,8 +4,8 @@ import math
 # units in tenth of mm
 HINGE_T = 5
 L = 150
-t=30
-theta=-5
+t=10
+theta=10
 origin=(200,200)
 
 def torad(deg):
@@ -175,13 +175,15 @@ class Triangle():
         return cls([pt1,pt2,pt3],innerlines=[cut1,cut2,cut3])
     
     def draw_outline(self,dwg):
-        # draw outline
         for i in range(3):
             print(f'Triangle: drawing outline {i}')
             self.lines[i].draw(dwg)
+        
+    def draw_cell_outline(self,dwg):
+        # only the 2nd line will be part of that, for the cell
+        self.lines[1].draw(dwg)
 
     def draw_innerlines(self,dwg):
-        # draw outline
         for line in self.innerlines:
             print(f'Triangle: drawing innerline')
             line.draw(dwg)
@@ -207,6 +209,11 @@ class FancyDrawing(sw.Drawing):
         for shape in self.shapes:
             print('FancyDrawing: drawing shape')
             shape.draw_innerlines(self)
+    
+    def draw_cell(self):
+        self.draw_inner()
+        for shape in self.shapes:
+            shape.draw_cell_outline(self)
 
 dwg = FancyDrawing(f'L{L}_t{t}_theta{theta}_cell.svg',profile='tiny')
 
@@ -214,6 +221,6 @@ for i in range(1,7):
     dwg.shapes.append(Triangle.fillout(origin,L,i,t,theta))
 
 
-dwg.draw()
+dwg.draw_cell()
 dwg.save()
 
