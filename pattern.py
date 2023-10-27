@@ -179,6 +179,6 @@ for i in range(1,7):
     dwg.shapes.append(Triangle.fillout(origin,L,i,t,theta))
 
 
-dwg.draw()
+dwg.draw_inner()
 dwg.save()
 
