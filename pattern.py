@@ -86,38 +86,9 @@ class Line(object):
         print('Line: drawing line, actually in svg')
         drawn_line=dwg.line(self.pt1,self.pt2,stroke=sw.rgb(255,0,0,'%'))
         dwg.add(drawn_line)
-    
-class Triangle():
-    def __init__(self,pts,innerlines=[]):
-        self.pts=pts
-        self.lines=[]
-        self.innerlines=innerlines
-        self.lines.append(Line(pts[0],pts[1]))
-        self.lines.append(Line(pts[1],pts[2]))
-        self.lines.append(Line(pts[2],pts[0]))
 
-    def __str__(self):
-        return f'Triangle with points {self.pts}'
-    
-    @classmethod
-    def equilateral(cls,pt,L,hx):
-        pt1 = pt
-
-        theta_up = torad(60*hx)
-        theta_down = torad(60*hx-120)
-
-        pt2x = pt1[0]+L*math.cos(theta_up)
-        pt2y = pt1[1]+L*math.sin(theta_up)
-        pt2=(pt2x,pt2y)
-
-        pt3x = pt2[0]+L*math.cos(theta_down)
-        pt3y = pt2[1]+L*math.sin(theta_down)
-        pt3=(pt3x,pt3y)
-
-        return cls([pt1,pt2,pt3])
-    
-    @classmethod
-    def fillout(cls,pt,L,hx,t,theta):
+class FilledTri():
+    def __init__(self,pt,L,hx,t,theta):
         pt1 = pt
 
         theta_up = torad(60*hx)
@@ -145,6 +116,7 @@ class Triangle():
         line2 = Line(pt_order[1],pt_order[2])
         line3 = Line(pt_order[2],pt_order[0])
 
+        self.outlines = [line1,line2,line3] 
         # fraction along line
         frac = t/L
 
@@ -152,73 +124,85 @@ class Triangle():
         pt2f = line2.frac_thru(frac)
         pt3f = line3.frac_thru(frac)
 
+        # cuts just go cross each other
         cut1 = Line.ang_len(pt1f,L,angs[0])
         cut2 = Line.ang_len(pt2f,L,angs[1])
         cut3 = Line.ang_len(pt3f,L,angs[2])
 
-        # intersections with each other
-
+        # intersection points with each other
         end1 = cut1.intersect(cut3)
         end2 = cut2.intersect(cut1)
         end3 = cut3.intersect(cut2)
 
-        # update cuts
-
+        # update cuts to end where they intersect
         cut1 = Line(pt1f,end1)
         cut2 = Line(pt2f,end2)
         cut3 = Line(pt3f,end3)
 
+        # shorten each cut by the hinge thickness
         cut1.shorten(HINGE_T)
         cut2.shorten(HINGE_T)
         cut3.shorten(HINGE_T)
 
-        return cls([pt1,pt2,pt3],innerlines=[cut1,cut2,cut3])
+        self.cuts = [cut1,cut2,cut3]
+
+        # s
+        s_line = Line(end1,end2)
+        self.s = s_line.L
+
+        # expansion ratio
+        close_A = 3*(3**.5)*.5*(L)**2
+        exp_A= 3*(3**.5)*.5*(L+2*self.s*math.sin(torad(30+theta)))**2
+        self.E = exp_A/close_A
     
     def draw_outline(self,dwg):
         for i in range(3):
             print(f'Triangle: drawing outline {i}')
-            self.lines[i].draw(dwg)
+            self.outlines[i].draw(dwg)
         
     def draw_cell_outline(self,dwg):
         # only the 2nd line will be part of that, for the cell
-        self.lines[1].draw(dwg)
+        self.outlines[1].draw(dwg)
 
-    def draw_innerlines(self,dwg):
-        for line in self.innerlines:
+    def draw_cuts(self,dwg):
+        for line in self.cuts:
             print(f'Triangle: drawing innerline')
             line.draw(dwg)
 
-class FancyDrawing(sw.Drawing):
+class PatternDrawing(sw.Drawing):
     def __init__(self,filename,profile):
         print('Drawing initialized')
         super().__init__(filename,profile=profile)
         self.pts=[(0,0)]
         self.lines=[]
-        self.shapes=[]
+        self.tris=[]
     
     def draw(self):
         for line in self.lines:
-            print('FancyDrawing: drawing line')
+            print('PatternDrawing: drawing line')
             line.draw(self)
-        for shape in self.shapes:
-            print('FancyDrawing: drawing shape')
-            shape.draw_outline(self)
-            shape.draw_innerlines(self)
+        for tri in self.tris:
+            print('PatternDrawing: drawing tri')
+            tri.draw_outline(self)
+            tri.draw_cuts(self)
     
     def draw_inner(self):
-        for shape in self.shapes:
-            print('FancyDrawing: drawing shape')
-            shape.draw_innerlines(self)
+        for tri in self.tris:
+            print('PatternDrawing: drawing tri')
+            tri.draw_cuts(self)
     
     def draw_cell(self):
         self.draw_inner()
-        for shape in self.shapes:
-            shape.draw_cell_outline(self)
+        for tri in self.tris:
+            tri.draw_cell_outline(self)
 
-dwg = FancyDrawing(f'L{L}_t{t}_theta{theta}_cell.svg',profile='tiny')
+# dwg = PatternDrawing(f'L{L}_t{t}_theta{theta}_cell.svg',profile='tiny')
+dwg = PatternDrawing(f'broken_t_test.svg',profile='tiny')
 
-for i in range(1,7):
-    dwg.shapes.append(Triangle.fillout(origin,L,i,t,theta))
+
+for i in range(1,6):
+    dwg.tris.append(FilledTri(origin,L,i,t,theta))
+dwg.tris.append(FilledTri(origin,L,6,t+5,theta))
 
 
 dwg.draw_cell()
