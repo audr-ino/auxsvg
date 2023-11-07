@@ -82,72 +82,55 @@ class Line(object):
         self.L = new_L
         self.pt2 = (pt2x,pt2y)
 
-    def draw(self,dwg):
+    def draw(self,dwg,color=sw.rgb(255,0,0,'%')):
         print('Line: drawing line, actually in svg')
-        drawn_line=dwg.line(self.pt1,self.pt2,stroke=sw.rgb(255,0,0,'%'))
+        drawn_line=dwg.line(self.pt1,self.pt2,stroke=color)
         dwg.add(drawn_line)
 
 class FilledTri():
-    def __init__(self,pt,L,hx,t,theta):
-        pt1 = pt
+    def __init__(self,pt,L,t,theta,dir):
 
-        theta_up = torad(60*hx)
-        theta_down = torad(60*hx-120)
-
-        pt2x = pt1[0]+L*math.cos(theta_up)
-        pt2y = pt1[1]+L*math.sin(theta_up)
-        pt2=(pt2x,pt2y)
-
-        pt3x = pt2[0]+L*math.cos(theta_down)
-        pt3y = pt2[1]+L*math.sin(theta_down)
-        pt3=(pt3x,pt3y)
-
-        # if hx is even, inner triange rotates ccw
-        if(hx%2==0):
-            pt_order = [pt1,pt3,pt2]
-            angs = [0+60*hx-theta,120+60*hx-theta,240+60*hx-theta]
-
-        # if hx is odd, inner triangle rotates cw
+        if (dir=='up'):
+            angs = [180,60,300]
+            cut_angs = [120,0,240]
+            theta_sign = 1
+        elif (dir=='down'):
+            angs = [60,180,300]
+            cut_angs = [120,240,0]
+            theta_sign = -1
         else:
-            pt_order = [pt1,pt2,pt3]
-            angs = [-60+60*hx+theta,180+60*hx+theta,60+60*hx+theta]
-
-        line1 = Line(pt_order[0],pt_order[1])
-        line2 = Line(pt_order[1],pt_order[2])
-        line3 = Line(pt_order[2],pt_order[0])
-
-        self.outlines = [line1,line2,line3] 
-        # fraction along line
+            raise Exception('dir arg should be "up" or "down"')
+        
+        self.pts = [pt]
+        self.outlines = []
+        for ang in angs:
+            # start the next line at the latest point
+            self.outlines.append(Line.ang_len(self.pts[-1],L,ang))
+            # add the end pt of the just drawn line to the pts list
+            self.pts.append(self.outlines[-1].pt2)
+        
         frac = t/L
+        self.cuts = []
+        frac_pts=[]
 
-        pt1f = line1.frac_thru(frac)
-        pt2f = line2.frac_thru(frac)
-        pt3f = line3.frac_thru(frac)
-
-        # cuts just go cross each other
-        cut1 = Line.ang_len(pt1f,L,angs[0])
-        cut2 = Line.ang_len(pt2f,L,angs[1])
-        cut3 = Line.ang_len(pt3f,L,angs[2])
+        for i in range(3):
+            frac_pt = self.outlines[i].frac_thru(frac)
+            frac_pts.append(frac_pt)
+            cut_line = Line.ang_len(frac_pt,L,cut_angs[i]+theta*theta_sign)
+            self.cuts.append(cut_line)
 
         # intersection points with each other
-        end1 = cut1.intersect(cut3)
-        end2 = cut2.intersect(cut1)
-        end3 = cut3.intersect(cut2)
+        ends=[]
+        ends.append(self.cuts[0].intersect(self.cuts[2]))
+        ends.append(self.cuts[1].intersect(self.cuts[0]))
+        ends.append(self.cuts[2].intersect(self.cuts[1]))
 
-        # update cuts to end where they intersect
-        cut1 = Line(pt1f,end1)
-        cut2 = Line(pt2f,end2)
-        cut3 = Line(pt3f,end3)
-
-        # shorten each cut by the hinge thickness
-        cut1.shorten(HINGE_T)
-        cut2.shorten(HINGE_T)
-        cut3.shorten(HINGE_T)
-
-        self.cuts = [cut1,cut2,cut3]
+        for i in range(3):
+            self.cuts[i] = Line(frac_pts[i],ends[i])
+            self.cuts[i].shorten(HINGE_T)
 
         # s
-        s_line = Line(end1,end2)
+        s_line = Line(ends[0],ends[1])
         self.s = s_line.L
 
         # expansion ratio
@@ -159,15 +142,38 @@ class FilledTri():
         for i in range(3):
             print(f'Triangle: drawing outline {i}')
             self.outlines[i].draw(dwg)
-        
-    def draw_cell_outline(self,dwg):
-        # only the 2nd line will be part of that, for the cell
-        self.outlines[1].draw(dwg)
 
     def draw_cuts(self,dwg):
         for line in self.cuts:
             print(f'Triangle: drawing innerline')
             line.draw(dwg)
+
+class TriGrid():
+    def __init__(self,L,nX,nY):
+        self.nX = nX
+        self.nY = nY
+        self.t = t
+        self.theta = theta
+        
+        # making grid
+        self.xLines = []
+        self.yLines = []
+        self.grid_pts = []
+        for n in range(nX):
+            self.xLines.append(Line.ang_len((n*L,0),L*nY,60))
+        for n in range(nY):
+            self.yLines.append(Line.ang_len((0,n*L*math.sin(torad(60))),L*nX,0))
+        for xLine in self.xLines:
+            for yLine in self.yLines:
+                self.grid_pts.append(yLine.intersect(xLine))
+    
+    def draw_grid(self,dwg):
+        for line in self.xLines:
+            line.draw(dwg,sw.rgb(0,255,0,'%'))
+        for line in self.yLines:
+            line.draw(dwg,sw.rgb(0,255,0,'%'))
+
+
 
 class PatternDrawing(sw.Drawing):
     def __init__(self,filename,profile):
@@ -177,34 +183,26 @@ class PatternDrawing(sw.Drawing):
         self.lines=[]
         self.tris=[]
     
-    def draw(self):
-        for line in self.lines:
-            print('PatternDrawing: drawing line')
-            line.draw(self)
-        for tri in self.tris:
-            print('PatternDrawing: drawing tri')
-            tri.draw_outline(self)
-            tri.draw_cuts(self)
-    
     def draw_inner(self):
         for tri in self.tris:
             print('PatternDrawing: drawing tri')
             tri.draw_cuts(self)
     
-    def draw_cell(self):
-        self.draw_inner()
+    def draw_oulines(self):
         for tri in self.tris:
-            tri.draw_cell_outline(self)
+            tri.draw_outline(self)
+
 
 # dwg = PatternDrawing(f'L{L}_t{t}_theta{theta}_cell.svg',profile='tiny')
-dwg = PatternDrawing(f'broken_t_test.svg',profile='tiny')
+dwg = PatternDrawing(f'grid_test_cells.svg',profile='tiny')
+grid = TriGrid(L,5,5)
+# grid.draw_grid(dwg)
 
+for pt in grid.grid_pts:
+    dwg.tris.append(FilledTri(pt,L,t,theta,'up'))
+    dwg.tris.append(FilledTri(pt,L,t,theta,'down'))
 
-for i in range(1,6):
-    dwg.tris.append(FilledTri(origin,L,i,t,theta))
-dwg.tris.append(FilledTri(origin,L,6,t+5,theta))
+dwg.draw_inner()
 
-
-dwg.draw_cell()
 dwg.save()
 
