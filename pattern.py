@@ -152,57 +152,69 @@ class TriGrid():
     def __init__(self,L,nX,nY):
         self.nX = nX
         self.nY = nY
-        self.t = t
-        self.theta = theta
+        self.L = L
         
+        # making storage bins
+        self.tris = {}
+        for i in range(nX):
+            row = {}
+            for j in range(nY):
+                row[j]={"up":None,"down":None}
+            self.tris[i]=row
+        
+        print(f"initial tri storage bins: {self.tris}")
+
         # making grid
         self.xLines = []
         self.yLines = []
-        self.grid_pts = []
+        self.grid_pts = {}
         for n in range(nX):
             self.xLines.append(Line.ang_len((n*L,0),L*nY,60))
         for n in range(nY):
             self.yLines.append(Line.ang_len((0,n*L*math.sin(torad(60))),L*nX,0))
-        for xLine in self.xLines:
-            for yLine in self.yLines:
-                self.grid_pts.append(yLine.intersect(xLine))
-    
+        for i in range(nX):
+            row={}
+            for j in range(nY):
+                xLine = self.xLines[i]
+                yLine = self.yLines[j]
+                row[j] = yLine.intersect(xLine)
+            self.grid_pts[i]=row
+
+    def add_tri(self,x,y,t,theta,dir):
+        print(f"grid: adding {dir} tri to {x}, {y} position")
+        pt = self.grid_pts[x][y]
+        tri = FilledTri(pt,self.L,t,theta,dir)
+        self.tris[x][y][dir]=tri
+
     def draw_grid(self,dwg):
         for line in self.xLines:
             line.draw(dwg,sw.rgb(0,255,0,'%'))
         for line in self.yLines:
             line.draw(dwg,sw.rgb(0,255,0,'%'))
-
-
-
-class PatternDrawing(sw.Drawing):
-    def __init__(self,filename,profile):
-        print('Drawing initialized')
-        super().__init__(filename,profile=profile)
-        self.pts=[(0,0)]
-        self.lines=[]
-        self.tris=[]
     
-    def draw_inner(self):
-        for tri in self.tris:
-            print('PatternDrawing: drawing tri')
-            tri.draw_cuts(self)
-    
-    def draw_oulines(self):
-        for tri in self.tris:
-            tri.draw_outline(self)
+    def draw_pattern(self,dwg):
+        for i in range(self.nX):
+            for j in range(self.nY):
+                if(self.tris[i][j]["up"]):
+                    self.tris[i][j]["up"].draw_cuts(dwg)
+                if(self.tris[i][j]["down"]):
+                    self.tris[i][j]["down"].draw_cuts(dwg)
 
+nX = 5
+nY = 5                 
+dwg = sw.Drawing(f'grid_new_format_test.svg',profile='tiny')
 
-# dwg = PatternDrawing(f'L{L}_t{t}_theta{theta}_cell.svg',profile='tiny')
-dwg = PatternDrawing(f'grid_test_cells.svg',profile='tiny')
-grid = TriGrid(L,5,5)
-# grid.draw_grid(dwg)
+# set up grid
+grid = TriGrid(L,nX,nY)
 
-for pt in grid.grid_pts:
-    dwg.tris.append(FilledTri(pt,L,t,theta,'up'))
-    dwg.tris.append(FilledTri(pt,L,t,theta,'down'))
+# add triangles to grid
+for i in range(nX):
+    for j in range(nY):
+        grid.add_tri(i,j,t,theta,"up")
+        grid.add_tri(i,j,t+5,theta+1,"down")
 
-dwg.draw_inner()
+# draw the grid onto the drawing we set up
+grid.draw_pattern(dwg)
 
 dwg.save()
 
