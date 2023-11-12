@@ -161,6 +161,13 @@ class FilledTri():
         for line in self.cuts:
             print(f'Triangle: drawing innerline')
             line.draw(dwg)
+    
+    def draw_color_cuts(self,dwg):
+        colors = [red,green,blue]
+        for i in range(3):
+            line = self.cuts[i]
+            print(f'Triangle: drawing color coded innerline')
+            line.draw(dwg,colors[i])
 
 class TriGrid():
     def __init__(self,L,nX,nY):
