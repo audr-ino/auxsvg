@@ -5,7 +5,7 @@ import math
 HINGE_T = 5
 L = 150
 t=10
-theta=10
+theta=0
 origin=(200,200)
 
 def torad(deg):
@@ -24,6 +24,7 @@ def ang_btwn(pt1,pt2):
     delX = pt2[0]-pt1[0]
     delY = pt2[1]-pt1[1]
     return todeg(math.atan2(delY,delX))
+
 
 class Line(object):
     def __init__(self,pt1,pt2):
@@ -137,7 +138,7 @@ class FilledTri():
         close_A = 3*(3**.5)*.5*(L)**2
         exp_A= 3*(3**.5)*.5*(L+2*self.s*math.sin(torad(30+theta)))**2
         self.E = exp_A/close_A
-    
+
     def draw_outline(self,dwg):
         for i in range(3):
             print(f'Triangle: drawing outline {i}')
@@ -153,38 +154,103 @@ class TriGrid():
         self.nX = nX
         self.nY = nY
         self.L = L
-        
-        # making storage bins
-        self.tris = {}
-        for i in range(nX):
-            row = {}
-            for j in range(nY):
-                row[j]={"up":None,"down":None}
-            self.tris[i]=row
-        
-        print(f"initial tri storage bins: {self.tris}")
 
         # making grid
         self.xLines = []
         self.yLines = []
-        self.grid_pts = {}
+
         for n in range(nX):
             self.xLines.append(Line.ang_len((n*L,0),L*nY,60))
         for n in range(nY):
             self.yLines.append(Line.ang_len((0,n*L*math.sin(torad(60))),L*nX,0))
+        
+        # storing info
+        self.grid_pts = {}
+        self.tris={}
+
         for i in range(nX):
-            row={}
+            grid_pts_row = {}
+            tris_row = {}
+
             for j in range(nY):
                 xLine = self.xLines[i]
                 yLine = self.yLines[j]
-                row[j] = yLine.intersect(xLine)
-            self.grid_pts[i]=row
+
+                grid_pts_row[j] = yLine.intersect(xLine)
+                tris_row[j] = {"up":None,"down":None}
+
+            self.grid_pts[i]=grid_pts_row
+            self.tris[i]=tris_row
 
     def add_tri(self,x,y,t,theta,dir):
         print(f"grid: adding {dir} tri to {x}, {y} position")
         pt = self.grid_pts[x][y]
         tri = FilledTri(pt,self.L,t,theta,dir)
         self.tris[x][y][dir]=tri
+
+    def meld_neighbors(self):
+        for i in range(nX):
+            for j in range(nY):
+                # up tri
+                me_up = self.tris[i][j]["up"]
+                # up neighbors
+                try:
+                    nei_of_up_0 = self.tris[i][j]["down"]
+                    # lines to join
+                    me_line = me_up.cuts[1]
+                    nei_line = nei_of_up_0.cuts[0]
+                    
+
+                    cross_pt = me_line.intersect(nei_line)
+
+                    new_me_line = Line(cross_pt,me_line.pt2)
+                    new_nei_line = Line(cross_pt,nei_line.pt2)
+                    
+                    # putting the lines back into the tris
+                    self.tris[i][j]["up"].cuts[1]=new_me_line
+                    self.tris[i][j]["down"].cuts[0]=new_nei_line
+
+                except (KeyError):
+                    nei_of_up_0 = None
+
+                try:
+                    nei_of_up_1 = self.tris[i+1][j]["down"]
+                    # lines to join
+                    me_line = me_up.cuts[2]
+                    nei_line = nei_of_up_1.cuts[2]
+                    
+
+                    cross_pt = me_line.intersect(nei_line)
+
+                    new_me_line = Line(cross_pt,me_line.pt2)
+                    new_nei_line = Line(cross_pt,nei_line.pt2)
+                    
+                    # putting the lines back into the tris
+                    self.tris[i][j]["up"].cuts[2]=new_me_line
+                    self.tris[i+1][j]["down"].cuts[2]=new_nei_line
+
+                except (KeyError):
+                    nei_of_up_1 = None
+
+                try:
+                    nei_of_up_2 = self.tris[i][j-1]["down"]
+                    # lines to join
+                    me_line = me_up.cuts[0]
+                    nei_line = nei_of_up_2.cuts[1]
+                    
+
+                    cross_pt = me_line.intersect(nei_line)
+
+                    new_me_line = Line(cross_pt,me_line.pt2)
+                    new_nei_line = Line(cross_pt,nei_line.pt2)
+                    
+                    # putting the lines back into the tris
+                    self.tris[i][j]["up"].cuts[0]=new_me_line
+                    self.tris[i][j-1]["down"].cuts[1]=new_nei_line
+
+                except (KeyError):
+                    nei_of_up_2 = None
+                
 
     def draw_grid(self,dwg):
         for line in self.xLines:
@@ -202,7 +268,7 @@ class TriGrid():
 
 nX = 5
 nY = 5                 
-dwg = sw.Drawing(f'grid_new_format_test.svg',profile='tiny')
+dwg = sw.Drawing(f'grid.svg',profile='tiny')
 
 # set up grid
 grid = TriGrid(L,nX,nY)
@@ -211,7 +277,9 @@ grid = TriGrid(L,nX,nY)
 for i in range(nX):
     for j in range(nY):
         grid.add_tri(i,j,t,theta,"up")
-        grid.add_tri(i,j,t+5,theta+1,"down")
+        grid.add_tri(i,j,t+5,theta,"down")
+
+# grid.meld_neighbors()
 
 # draw the grid onto the drawing we set up
 grid.draw_pattern(dwg)
