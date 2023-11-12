@@ -1,6 +1,15 @@
 import svgwrite as sw
 import math
 
+# colors
+red = sw.rgb(255,0,0,'%')
+green = sw.rgb(0,255,0,'%')
+blue = sw.rgb(0,0,255,'%')
+black = sw.rgb(0,0,0,'%')
+yellow = sw.rgb(255,255,0,'%')
+cyan = sw.rgb(0,255,255,'%')
+magenta = sw.rgb(255,0,255,'%')
+
 # units in tenth of mm
 HINGE_T = 5
 L = 150
@@ -27,7 +36,8 @@ def ang_btwn(pt1,pt2):
 
 
 class Line(object):
-    def __init__(self,pt1,pt2):
+    def __init__(self,pt1,pt2,color=red):
+        self.color = color
         self.pt1 = pt1
         self.pt2 = pt2
         self.L = len_btwn(pt1,pt2)
@@ -39,12 +49,12 @@ class Line(object):
         self.b = pt1[1]-self.m*pt1[0]
 
     @classmethod
-    def ang_len(cls,pt1,L,theta):
+    def ang_len(cls,pt1,L,theta,color=red):
         rad = torad(theta)
         pt2x=pt1[0]+L*math.cos(rad)
         pt2y=pt1[1]+L*math.sin(rad)
         pt2=(pt2x,pt2y)
-        return cls(pt1,pt2)
+        return cls(pt1,pt2,color)
     
     def x_to_y(self,x):
         y = self.m*x+self.b
@@ -83,7 +93,9 @@ class Line(object):
         self.L = new_L
         self.pt2 = (pt2x,pt2y)
 
-    def draw(self,dwg,color=sw.rgb(255,0,0,'%')):
+    def draw(self,dwg,color=None):
+        if (color==None):
+            color = self.color
         print('Line: drawing line, actually in svg')
         drawn_line=dwg.line(self.pt1,self.pt2,stroke=color)
         dwg.add(drawn_line)
@@ -114,6 +126,7 @@ class FilledTri():
         self.cuts = []
         frac_pts=[]
 
+        
         for i in range(3):
             frac_pt = self.outlines[i].frac_thru(frac)
             frac_pts.append(frac_pt)
@@ -197,27 +210,8 @@ class TriGrid():
                 try:
                     nei_of_up_0 = self.tris[i][j]["down"]
                     # lines to join
-                    me_line = me_up.cuts[1]
-                    nei_line = nei_of_up_0.cuts[0]
-                    
-
-                    cross_pt = me_line.intersect(nei_line)
-
-                    new_me_line = Line(cross_pt,me_line.pt2)
-                    new_nei_line = Line(cross_pt,nei_line.pt2)
-                    
-                    # putting the lines back into the tris
-                    self.tris[i][j]["up"].cuts[1]=new_me_line
-                    self.tris[i][j]["down"].cuts[0]=new_nei_line
-
-                except (KeyError):
-                    nei_of_up_0 = None
-
-                try:
-                    nei_of_up_1 = self.tris[i+1][j]["down"]
-                    # lines to join
                     me_line = me_up.cuts[2]
-                    nei_line = nei_of_up_1.cuts[2]
+                    nei_line = nei_of_up_0.cuts[2]
                     
 
                     cross_pt = me_line.intersect(nei_line)
@@ -227,7 +221,26 @@ class TriGrid():
                     
                     # putting the lines back into the tris
                     self.tris[i][j]["up"].cuts[2]=new_me_line
-                    self.tris[i+1][j]["down"].cuts[2]=new_nei_line
+                    self.tris[i][j]["down"].cuts[2]=new_nei_line
+
+                except (KeyError):
+                    nei_of_up_0 = None
+
+                try:
+                    nei_of_up_1 = self.tris[i-1][j]["down"]
+                    # lines to join
+                    me_line = me_up.cuts[1]
+                    nei_line = nei_of_up_1.cuts[0]
+                    
+
+                    cross_pt = me_line.intersect(nei_line)
+
+                    new_me_line = Line(cross_pt,me_line.pt2)
+                    new_nei_line = Line(cross_pt,nei_line.pt2)
+                    
+                    # putting the lines back into the tris
+                    self.tris[i][j]["up"].cuts[1]=new_me_line
+                    self.tris[i-1][j]["down"].cuts[0]=new_nei_line
 
                 except (KeyError):
                     nei_of_up_1 = None
@@ -254,9 +267,9 @@ class TriGrid():
 
     def draw_grid(self,dwg):
         for line in self.xLines:
-            line.draw(dwg,sw.rgb(0,255,0,'%'))
+            line.draw(dwg,black)
         for line in self.yLines:
-            line.draw(dwg,sw.rgb(0,255,0,'%'))
+            line.draw(dwg,black)
     
     def draw_pattern(self,dwg):
         for i in range(self.nX):
@@ -268,7 +281,7 @@ class TriGrid():
 
 nX = 5
 nY = 5                 
-dwg = sw.Drawing(f'grid.svg',profile='tiny')
+dwg = sw.Drawing(f'grid_colors_test.svg',profile='tiny')
 
 # set up grid
 grid = TriGrid(L,nX,nY)
@@ -276,12 +289,13 @@ grid = TriGrid(L,nX,nY)
 # add triangles to grid
 for i in range(nX):
     for j in range(nY):
-        grid.add_tri(i,j,t,theta,"up")
+        grid.add_tri(i,j,t,theta+10,"up")
         grid.add_tri(i,j,t+5,theta,"down")
 
-# grid.meld_neighbors()
+grid.meld_neighbors()
 
 # draw the grid onto the drawing we set up
+# grid.draw_grid(dwg)
 grid.draw_pattern(dwg)
 
 dwg.save()
