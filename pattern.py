@@ -61,7 +61,6 @@ class Line(object):
         return y
     
     def frac_thru(self,p):
-        print(f'Doing frac_thru on line with theta: {self.theta}')
         rad = torad(self.theta)
         ptX = self.pt1[0]+p*self.L*math.cos(rad)
         ptY = self.pt1[1]+p*self.L*math.sin(rad)
@@ -96,7 +95,6 @@ class Line(object):
     def draw(self,dwg,color=None):
         if (color==None):
             color = self.color
-        print('Line: drawing line, actually in svg')
         drawn_line=dwg.line(self.pt1,self.pt2,stroke=color)
         dwg.add(drawn_line)
 
@@ -159,7 +157,6 @@ class FilledTri():
 
     def draw_cuts(self,dwg):
         for line in self.cuts:
-            print(f'Triangle: drawing innerline')
             line.draw(dwg)
     
     def draw_color_cuts(self,dwg):
@@ -209,68 +206,37 @@ class TriGrid():
         self.tris[x][y][dir]=tri
 
     def meld_neighbors(self):
+        # me cut order
+        me_cuts = [2,1,0]
+        # neighbor cut order
+        nei_cuts = [2,0,1]
+
         for i in range(nX):
             for j in range(nY):
-                # up tri
-                me_up = self.tris[i][j]["up"]
-                # up neighbors
-                try:
-                    nei_of_up_0 = self.tris[i][j]["down"]
-                    # lines to join
-                    me_line = me_up.cuts[2]
-                    nei_line = nei_of_up_0.cuts[2]
+                print(f"melding neighbors of ({i},{j})")
+                # # up tri
+                me = self.tris[i][j]["up"]
+                # neighbors 
+                neighbors_keys = [[i,j,'down'],[i-1,j,'down'],[i,j-1,'down']]
+
+                for k in range(3):
+                    keys = neighbors_keys[k]
+                    neighbor=self.tris.get(keys[0],{}).get(keys[1],{}).get(keys[2])
                     
+                    if (neighbor):
+                        me_cut = me_cuts[k]
+                        nei_cut = nei_cuts[k]
 
-                    cross_pt = me_line.intersect(nei_line)
+                        me_line = me.cuts[me_cut]
+                        nei_line = neighbor.cuts[nei_cut]
+                        cross_pt = me_line.intersect(nei_line)
 
-                    new_me_line = Line(cross_pt,me_line.pt2)
-                    new_nei_line = Line(cross_pt,nei_line.pt2)
-                    
-                    # putting the lines back into the tris
-                    self.tris[i][j]["up"].cuts[2]=new_me_line
-                    self.tris[i][j]["down"].cuts[2]=new_nei_line
+                        new_me_line = Line(cross_pt,me_line.pt2)
+                        new_nei_line = Line(cross_pt,nei_line.pt2)  
 
-                except (KeyError):
-                    nei_of_up_0 = None
-
-                try:
-                    nei_of_up_1 = self.tris[i-1][j]["down"]
-                    # lines to join
-                    me_line = me_up.cuts[1]
-                    nei_line = nei_of_up_1.cuts[0]
-                    
-
-                    cross_pt = me_line.intersect(nei_line)
-
-                    new_me_line = Line(cross_pt,me_line.pt2)
-                    new_nei_line = Line(cross_pt,nei_line.pt2)
-                    
-                    # putting the lines back into the tris
-                    self.tris[i][j]["up"].cuts[1]=new_me_line
-                    self.tris[i-1][j]["down"].cuts[0]=new_nei_line
-
-                except (KeyError):
-                    nei_of_up_1 = None
-
-                try:
-                    nei_of_up_2 = self.tris[i][j-1]["down"]
-                    # lines to join
-                    me_line = me_up.cuts[0]
-                    nei_line = nei_of_up_2.cuts[1]
-                    
-
-                    cross_pt = me_line.intersect(nei_line)
-
-                    new_me_line = Line(cross_pt,me_line.pt2)
-                    new_nei_line = Line(cross_pt,nei_line.pt2)
-                    
-                    # putting the lines back into the tris
-                    self.tris[i][j]["up"].cuts[0]=new_me_line
-                    self.tris[i][j-1]["down"].cuts[1]=new_nei_line
-
-                except (KeyError):
-                    nei_of_up_2 = None
-                
+                        self.tris[i][j]["up"].cuts[me_cut]=new_me_line
+                        self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line                      
+             
 
     def draw_grid(self,dwg):
         for line in self.xLines:
@@ -288,7 +254,7 @@ class TriGrid():
 
 nX = 5
 nY = 5                 
-dwg = sw.Drawing(f'grid_colors_test.svg',profile='tiny')
+dwg = sw.Drawing(f'grid_meld_nei_test.svg',profile='tiny')
 
 # set up grid
 grid = TriGrid(L,nX,nY)
@@ -296,8 +262,8 @@ grid = TriGrid(L,nX,nY)
 # add triangles to grid
 for i in range(nX):
     for j in range(nY):
-        grid.add_tri(i,j,t,theta+10,"up")
-        grid.add_tri(i,j,t+5,theta,"down")
+        grid.add_tri(i,j,t+i*j*2.5,theta+5,"up")
+        grid.add_tri(i,j,t+i*j*2.5,theta+5,"down")
 
 grid.meld_neighbors()
 
