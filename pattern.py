@@ -11,8 +11,8 @@ cyan = sw.rgb(0,255,255,'%')
 magenta = sw.rgb(255,0,255,'%')
 
 # units in tenth of mm
-HINGE_T = 5
-L = 150
+HINGE_T = 2.5
+L = 100
 t=10
 theta=0
 origin=(200,200)
@@ -216,26 +216,27 @@ class TriGrid():
                 print(f"melding neighbors of ({i},{j})")
                 # # up tri
                 me = self.tris[i][j]["up"]
-                # neighbors 
-                neighbors_keys = [[i,j,'down'],[i-1,j,'down'],[i,j-1,'down']]
+                if(me):
+                    # neighbors 
+                    neighbors_keys = [[i,j,'down'],[i-1,j,'down'],[i,j-1,'down']]
 
-                for k in range(3):
-                    keys = neighbors_keys[k]
-                    neighbor=self.tris.get(keys[0],{}).get(keys[1],{}).get(keys[2])
-                    
-                    if (neighbor):
-                        me_cut = me_cuts[k]
-                        nei_cut = nei_cuts[k]
+                    for k in range(3):
+                        keys = neighbors_keys[k]
+                        neighbor=self.tris.get(keys[0],{}).get(keys[1],{}).get(keys[2])
+                        
+                        if (neighbor):
+                            me_cut = me_cuts[k]
+                            nei_cut = nei_cuts[k]
 
-                        me_line = me.cuts[me_cut]
-                        nei_line = neighbor.cuts[nei_cut]
-                        cross_pt = me_line.intersect(nei_line)
+                            me_line = me.cuts[me_cut]
+                            nei_line = neighbor.cuts[nei_cut]
+                            cross_pt = me_line.intersect(nei_line)
 
-                        new_me_line = Line(cross_pt,me_line.pt2)
-                        new_nei_line = Line(cross_pt,nei_line.pt2)  
+                            new_me_line = Line(cross_pt,me_line.pt2)
+                            new_nei_line = Line(cross_pt,nei_line.pt2)  
 
-                        self.tris[i][j]["up"].cuts[me_cut]=new_me_line
-                        self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line                      
+                            self.tris[i][j]["up"].cuts[me_cut]=new_me_line
+                            self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line                      
              
 
     def draw_grid(self,dwg):
@@ -254,16 +255,51 @@ class TriGrid():
 
 nX = 5
 nY = 5                 
-dwg = sw.Drawing(f'grid_meld_nei_test.svg',profile='tiny')
+dwg = sw.Drawing(f'hexagon.svg',profile='tiny')
 
 # set up grid
 grid = TriGrid(L,nX,nY)
 
-# add triangles to grid
-for i in range(nX):
-    for j in range(nY):
-        grid.add_tri(i,j,t+i*j*2.5,theta+5,"up")
-        grid.add_tri(i,j,t+i*j*2.5,theta+5,"down")
+# # add triangles to grid
+# for i in range(nX):
+#     for j in range(nY):
+#         grid.add_tri(i,j,t+i*j*2.5,theta+5,"up")
+#         grid.add_tri(i,j,t+i*j*2.5,theta+5,"down")
+
+t_s = 6
+theta_s = todeg(.2142)
+
+t_b = 5
+theta_b = todeg(.0952)
+
+# smalls
+grid.add_tri(0,3,t_s,theta_s,'up')
+grid.add_tri(0,3,t_s,theta_s,'down')
+grid.add_tri(1,3,t_s,theta_s,'up')
+grid.add_tri(1,3,t_s,theta_s,'down')
+grid.add_tri(2,3,t_s,theta_s,'up')
+grid.add_tri(0,2,t_s,theta_s,'up')
+grid.add_tri(0,2,t_s,theta_s,'down')
+grid.add_tri(2,2,t_s,theta_s,'down')
+grid.add_tri(3,2,t_s,theta_s,'up')
+grid.add_tri(0,1,t_s,theta_s,'down')
+grid.add_tri(1,1,t_s,theta_s,'up')
+grid.add_tri(3,1,t_s,theta_s,'up')
+grid.add_tri(3,1,t_s,theta_s,'down')
+grid.add_tri(1,0,t_s,theta_s,'down')
+grid.add_tri(2,0,t_s,theta_s,'up')
+grid.add_tri(2,0,t_s,theta_s,'down')
+grid.add_tri(3,0,t_s,theta_s,'up')
+grid.add_tri(3,0,t_s,theta_s,'down')
+
+# bigs
+grid.add_tri(1,2,t_b,theta_b,'up')
+grid.add_tri(1,2,t_b,theta_b,'down')
+grid.add_tri(2,2,t_b,theta_b,'up')
+grid.add_tri(1,1,t_b,theta_b,'down')
+grid.add_tri(2,1,t_b,theta_b,'up')
+grid.add_tri(2,1,t_b,theta_b,'down')
+
 
 grid.meld_neighbors()
 
