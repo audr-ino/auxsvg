@@ -101,6 +101,9 @@ class Line(object):
 class FilledTri():
     def __init__(self,pt,L,t,theta,dir):
 
+        # to be used later in neighbor aware algorithm
+        self.compromises = []
+
         if (dir=='up'):
             angs = [180,60,300]
             cut_angs = [120,0,240]
@@ -140,6 +143,9 @@ class FilledTri():
         for i in range(3):
             self.cuts[i] = Line(frac_pts[i],ends[i])
             self.cuts[i].shorten(HINGE_T)
+        
+        # breaks for neighbor aware alg
+        self.breaks = [ends[1],ends[2],ends[0]]
 
         # s
         s_line = Line(ends[0],ends[1])
@@ -153,10 +159,12 @@ class FilledTri():
     def draw_outline(self,dwg):
         for i in range(3):
             print(f'Triangle: drawing outline {i}')
-            self.outlines[i].draw(dwg)
+            self.outlines[i].draw(dwg,black)
 
     def draw_cuts(self,dwg):
         for line in self.cuts:
+            line.draw(dwg)
+        for line in self.compromises:
             line.draw(dwg)
     
     def draw_color_cuts(self,dwg):
@@ -216,7 +224,7 @@ class TriGrid():
                 print(f"melding neighbors of ({i},{j})")
                 # # up tri
                 me = self.tris[i][j]["up"]
-                if(me):
+                if (me):
                     # neighbors 
                     neighbors_keys = [[i,j,'down'],[i-1,j,'down'],[i,j-1,'down']]
 
@@ -225,18 +233,25 @@ class TriGrid():
                         neighbor=self.tris.get(keys[0],{}).get(keys[1],{}).get(keys[2])
                         
                         if (neighbor):
+                            # cut numbers, type: Int
                             me_cut = me_cuts[k]
                             nei_cut = nei_cuts[k]
 
+                            # actual cuts, type: Line
                             me_line = me.cuts[me_cut]
                             nei_line = neighbor.cuts[nei_cut]
-                            cross_pt = me_line.intersect(nei_line)
 
-                            new_me_line = Line(cross_pt,me_line.pt2)
-                            new_nei_line = Line(cross_pt,nei_line.pt2)  
+                            # type: (Float, Float)
+                            compromise_line = Line(me_line.pt1,nei_line.pt1)
+                            compromise_pt = compromise_line.frac_thru(.5)
+
+                            new_me_line = Line(me.breaks[me_cut],me_line.pt2)
+                            new_nei_line = Line(neighbor.breaks[nei_cut],nei_line.pt2)  
 
                             self.tris[i][j]["up"].cuts[me_cut]=new_me_line
-                            self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line                      
+                            self.tris[i][j]["up"].compromises.append(Line(me.breaks[me_cut],compromise_pt))
+                            self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line    
+                            self.tris[keys[0]][keys[1]][keys[2]].compromises.append(Line(neighbor.breaks[nei_cut],compromise_pt))                  
              
 
     def draw_grid(self,dwg):
@@ -249,13 +264,15 @@ class TriGrid():
         for i in range(self.nX):
             for j in range(self.nY):
                 if(self.tris[i][j]["up"]):
+                    self.tris[i][j]["up"].draw_outline(dwg)
                     self.tris[i][j]["up"].draw_cuts(dwg)
                 if(self.tris[i][j]["down"]):
+                    self.tris[i][j]["down"].draw_outline(dwg)
                     self.tris[i][j]["down"].draw_cuts(dwg)
 
 nX = 5
 nY = 5                 
-dwg = sw.Drawing(f'hexagon.svg',profile='tiny')
+dwg = sw.Drawing(f'nei_alg_test_hexagon.svg',profile='tiny')
 
 # set up grid
 grid = TriGrid(L,nX,nY)
@@ -266,10 +283,10 @@ grid = TriGrid(L,nX,nY)
 #         grid.add_tri(i,j,t+i*j*2.5,theta+5,"up")
 #         grid.add_tri(i,j,t+i*j*2.5,theta+5,"down")
 
-t_s = 6
+t_s = 10
 theta_s = todeg(.2142)
 
-t_b = 5
+t_b = 3
 theta_b = todeg(.0952)
 
 # smalls
