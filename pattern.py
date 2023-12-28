@@ -92,10 +92,17 @@ class Line(object):
         dwg.add(drawn_line)
 
 class FilledTri():
-    def __init__(self,pt,L,t,theta,HINGE_T,dir):
+    def __init__(self,pt,L,t,theta,HINGE_T,dir,expL,s,gap,type):
+        # make everything an attribute
+        self.pt = pt
         self.L = L
-        # to be used later in neighbor aware algorithm
-        self.compromises = []
+        self.t = t
+        self.theta = theta
+        self.HINGE_T = HINGE_T
+        self.dir = dir
+        self.expL = expL
+        self.s = s
+        self.gap = gap
 
         if (dir=='up'):
             angs = [180,60,300]
@@ -108,60 +115,108 @@ class FilledTri():
         else:
             raise Exception('dir arg should be "up" or "down"')
         
-        self.pts = [pt]
+        self.compromises = []
         self.outlines = []
-        for ang in angs:
-            # start the next line at the latest point
-            self.outlines.append(Line.ang_len(self.pts[-1],self.L,ang))
-            # add the end pt of the just drawn line to the pts list
-            self.pts.append(self.outlines[-1].pt2)
-        
-        frac = t/self.L
         self.cuts = []
-        frac_pts=[]
+        self.wingtips = []
+        self.triangle_lines = []
 
+        if (type == "compressed"):
+
+            self.pts = [pt]
+            for ang in angs:
+                # start the next line at the latest point
+                self.outlines.append(Line.ang_len(self.pts[-1],L,ang))
+                # add the end pt of the just drawn line to the pts list
+                self.pts.append(self.outlines[-1].pt2)
+            
+            frac = t/L
+            frac_pts=[]
+            
+            for i in range(3):
+                frac_pt = self.outlines[i].frac_thru(frac)
+                frac_pts.append(frac_pt)
+                cut_line = Line.ang_len(frac_pt,L,cut_angs[i]+theta*theta_sign)
+                self.cuts.append(cut_line)
+
+            # intersection points with each other
+            ends=[]
+            ends.append(self.cuts[0].intersect(self.cuts[2]))
+            ends.append(self.cuts[1].intersect(self.cuts[0]))
+            ends.append(self.cuts[2].intersect(self.cuts[1]))
+
+            for i in range(3):
+                self.cuts[i] = Line(frac_pts[i],ends[i])
+                self.cuts[i].shorten(HINGE_T)
+            
+            # breaks for neighbor aware alg
+            self.breaks = [ends[1],ends[2],ends[0]]
         
-        for i in range(3):
-            frac_pt = self.outlines[i].frac_thru(frac)
-            frac_pts.append(frac_pt)
-            cut_line = Line.ang_len(frac_pt,self.L,cut_angs[i]+theta*theta_sign)
-            self.cuts.append(cut_line)
-
-        # intersection points with each other
-        ends=[]
-        ends.append(self.cuts[0].intersect(self.cuts[2]))
-        ends.append(self.cuts[1].intersect(self.cuts[0]))
-        ends.append(self.cuts[2].intersect(self.cuts[1]))
-
-        for i in range(3):
-            self.cuts[i] = Line(frac_pts[i],ends[i])
-            self.cuts[i].shorten(HINGE_T)
+        if (type=='expanded'):
+            self.pts = [pt]
+            for ang in angs:
+                # start the next line at the latest point
+                self.outlines.append(Line.ang_len(self.pts[-1],expL,ang))
+                # add the end pt of the just drawn line to the pts list
+                self.pts.append(self.outlines[-1].pt2)
+            
+            frac = t/expL
+            wingtip_frac = (t+gap)/expL
         
-        # breaks for neighbor aware alg
-        self.breaks = [ends[1],ends[2],ends[0]]
+            frac_pts=[]
+            wingtip_frac_pts =[]
+            
+            for i in range(3):
+                frac_pt = self.outlines[i].frac_thru(frac)
+                frac_pts.append(frac_pt)
+                cut_line = Line.ang_len(frac_pt,expL,cut_angs[i]+theta*theta_sign)
+                self.cuts.append(cut_line)
 
-        # data about lines for expanded version
-        # s - formula from Chen 2021 appendix ii
-        self.s = (self.L-3*t)*math.cos(torad(theta))+(3**.5)*(t-self.L)*math.sin(torad(theta))
+                wingtip_frac_pt = self.outlines[i].frac_thru(wingtip_frac)
+                wingtip_frac_pts.append(wingtip_frac_pt)
+                wingtip_line = Line.ang_len(wingtip_frac_pt,expL,cut_angs[i]+theta*theta_sign)
+                self.wingtips.append(wingtip_line)
+            
+            # intersection points w wingtip and cut
+            ends=[]
+            ends.append(self.wingtips[0].intersect(self.cuts[1]))
+            ends.append(self.wingtips[1].intersect(self.cuts[2]))
+            ends.append(self.wingtips[2].intersect(self.cuts[0]))
 
-        # extra bit that is added when expanded
-        self.gap = 2*self.s*math.sin(torad(30+theta))
-        self.expL = self.L + self.gap
-
-        # expansion ratio
-        close_A = 3*(3**.5)*.5*(self.L)**2
-        exp_A= 3*(3**.5)*.5*(self.expL)**2
-        self.E = exp_A/close_A
+            for i in range(3):
+                self.wingtips[i] = Line(wingtip_frac_pts[i],ends[i])
+                if i<2:
+                    self.cuts[i+1] = Line(frac_pts[i+1],ends[i])
+                else:
+                    self.cuts[0] = Line(frac_pts[0],ends[i])
+            
+            # creating the triangle
+            cl = self.cuts[0].L
+            hinge_frac = (cl-HINGE_T)/cl
+            for i in range(3):
+                end_pt = self.cuts[i].frac_thru(hinge_frac)
+                self.triangle_lines.append(Line(ends[i],end_pt))
+                self.cuts[i] = Line(frac_pts[i],self.triangle_lines[i].pt2)
 
     @classmethod
-    def expanded(self,pt,expL,t,theta,dir):
+    def compressed(cls,pt,L,t,theta,HINGE_T,dir):
+        rad = torad(theta)
+        radW30 = torad(theta+30)
+        s = (L-3*t)*math.cos(rad)+(3**.5)*(t-L)*math.sin(rad)
+        gap = 2*s*math.sin(radW30)
+        expL = L+gap
+        return cls(pt,L,t,theta,HINGE_T,dir,expL,s,gap,"compressed")
+
+    @classmethod
+    def expanded(cls,pt,expL,t,theta,HINGE_T,dir):      
         rad = torad(theta)
         radW30 = torad(theta+30)
         numer = expL+6*t*math.cos(rad)*math.sin(radW30)-2*(3**.5)*t*math.sin(rad)*math.sin(radW30)
         denom = 1+2*math.cos(rad)*math.sin(radW30)-2*(3**.5)*math.sin(rad)*math.sin(radW30)
-        self.L = numer/denom
-
-        self.s = (self.L-3*t)*math.cos(rad)+(3**.5)*(t-self.L)*math.sin(rad)
+        L = numer/denom
+        s = (L-3*t)*math.cos(rad)+(3**.5)*(t-L)*math.sin(rad)
+        gap = 2*s*math.sin(radW30)
+        return cls(pt,L,t,theta,HINGE_T,dir,expL,s,gap,"expanded")
 
 
     def draw_outline(self,dwg):
@@ -173,6 +228,10 @@ class FilledTri():
         for line in self.cuts:
             line.draw(dwg)
         for line in self.compromises:
+            line.draw(dwg)
+        for line in self.wingtips:
+            line.draw(dwg)
+        for line in self.triangle_lines:
             line.draw(dwg)
     
     def draw_color_cuts(self,dwg):
@@ -215,13 +274,16 @@ class TriGrid():
             self.grid_pts[i]=grid_pts_row
             self.tris[i]=tris_row
 
-    def add_tri(self,x,y,t,theta,HINGE_T,dir):
+    def add_tri(self,x,y,t,theta,HINGE_T,dir,type):
         print(f"grid: adding {dir} tri to {x}, {y} position")
         pt = self.grid_pts[x][y]
-        tri = FilledTri(pt,self.L,t,theta,HINGE_T,dir)
+        if (type == 'expanded'):
+            tri = FilledTri.expanded(pt,self.L,t,theta,HINGE_T,dir)
+        elif (type=='compressed'):
+            tri = FilledTri.compressed(pt,self.L,t,theta,HINGE_T,dir)
         self.tris[x][y][dir]=tri
 
-    def meld_neighbors(self):
+    def meld_compressed_neighbors(self):
         # me cut order
         me_cuts = [2,1,0]
         # neighbor cut order
@@ -261,7 +323,58 @@ class TriGrid():
                             self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line    
                             self.tris[keys[0]][keys[1]][keys[2]].compromises.append(Line(neighbor.breaks[nei_cut],compromise_pt))                  
              
+    def meld_expanded_neighbors(self):
+        # me cut order
+        me_cuts = [2,1,0]
+        # neighbor cut order
+        nei_cuts = [2,0,1]
 
+        for i in range(self.nX):
+            for j in range(self.nY):
+                print(f"melding neighbors of ({i},{j})")
+                # # up tri
+                me = self.tris[i][j]["up"]
+                if (me):
+                    # neighbors 
+                    neighbors_keys = [[i,j,'down'],[i-1,j,'down'],[i,j-1,'down']]
+
+                    for k in range(3):
+                        keys = neighbors_keys[k]
+                        neighbor=self.tris.get(keys[0],{}).get(keys[1],{}).get(keys[2])
+                        
+                        if (neighbor):
+                            # cut numbers, type: Int
+                            me_cut = me_cuts[k]
+                            nei_cut = nei_cuts[k]
+
+                            # actual cuts, type: Line
+                            me_line = me.cuts[me_cut]
+                            nei_line = neighbor.cuts[nei_cut]
+
+                            # type: (Float, Float)
+                            compromise_line = Line(me_line.pt1,nei_line.pt1)
+                            compromise_pt = compromise_line.frac_thru(.5)
+
+                            new_me_line = Line(compromise_pt,me_line.pt2)
+                            new_nei_line = Line(compromise_pt,nei_line.pt2)  
+
+                            self.tris[i][j]["up"].cuts[me_cut]=new_me_line
+                            self.tris[keys[0]][keys[1]][keys[2]].cuts[nei_cut]=new_nei_line  
+
+                            # wingtips
+
+                            me_wingtip = me.wingtips[me_cut]
+                            nei_wingtip = neighbor.wingtips[nei_cut]
+
+                            wt_compromise_line = Line(me_wingtip.pt1,nei_wingtip.pt1)
+                            wt_compromise_pt = wt_compromise_line.frac_thru(.5)
+
+                            new_me_wt = Line(wt_compromise_pt,me_wingtip.pt2)
+                            new_nei_wt = Line(wt_compromise_pt,nei_wingtip.pt2)
+
+                            self.tris[i][j]["up"].wingtips[me_cut]=new_me_wt
+                            self.tris[keys[0]][keys[1]][keys[2]].wingtips[nei_cut]=new_nei_wt 
+    
     def draw_grid(self,dwg):
         for line in self.xLines:
             line.draw(dwg,black)
@@ -272,8 +385,8 @@ class TriGrid():
         for i in range(self.nX):
             for j in range(self.nY):
                 if(self.tris[i][j]["up"]):
-                    self.tris[i][j]["up"].draw_outline(dwg)
+                    # self.tris[i][j]["up"].draw_outline(dwg)
                     self.tris[i][j]["up"].draw_cuts(dwg)
                 if(self.tris[i][j]["down"]):
-                    self.tris[i][j]["down"].draw_outline(dwg)
+                    # self.tris[i][j]["down"].draw_outline(dwg)
                     self.tris[i][j]["down"].draw_cuts(dwg)
