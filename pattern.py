@@ -385,8 +385,8 @@ class TriGrid():
         for i in range(self.nX):
             for j in range(self.nY):
                 if(self.tris[i][j]["up"]):
-                    # self.tris[i][j]["up"].draw_outline(dwg)
+                    self.tris[i][j]["up"].draw_outline(dwg)
                     self.tris[i][j]["up"].draw_cuts(dwg)
                 if(self.tris[i][j]["down"]):
-                    # self.tris[i][j]["down"].draw_outline(dwg)
+                    self.tris[i][j]["down"].draw_outline(dwg)
                     self.tris[i][j]["down"].draw_cuts(dwg)
