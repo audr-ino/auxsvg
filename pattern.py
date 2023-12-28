@@ -10,13 +10,6 @@ yellow = sw.rgb(255,255,0,'%')
 cyan = sw.rgb(0,255,255,'%')
 magenta = sw.rgb(255,0,255,'%')
 
-# units in tenth of mm
-HINGE_T = 2.5
-L = 100
-t=10
-theta=0
-origin=(200,200)
-
 def torad(deg):
     return deg * math.pi/180
 
@@ -99,8 +92,8 @@ class Line(object):
         dwg.add(drawn_line)
 
 class FilledTri():
-    def __init__(self,pt,L,t,theta,dir):
-
+    def __init__(self,pt,L,t,theta,HINGE_T,dir):
+        self.L = L
         # to be used later in neighbor aware algorithm
         self.compromises = []
 
@@ -119,11 +112,11 @@ class FilledTri():
         self.outlines = []
         for ang in angs:
             # start the next line at the latest point
-            self.outlines.append(Line.ang_len(self.pts[-1],L,ang))
+            self.outlines.append(Line.ang_len(self.pts[-1],self.L,ang))
             # add the end pt of the just drawn line to the pts list
             self.pts.append(self.outlines[-1].pt2)
         
-        frac = t/L
+        frac = t/self.L
         self.cuts = []
         frac_pts=[]
 
@@ -131,7 +124,7 @@ class FilledTri():
         for i in range(3):
             frac_pt = self.outlines[i].frac_thru(frac)
             frac_pts.append(frac_pt)
-            cut_line = Line.ang_len(frac_pt,L,cut_angs[i]+theta*theta_sign)
+            cut_line = Line.ang_len(frac_pt,self.L,cut_angs[i]+theta*theta_sign)
             self.cuts.append(cut_line)
 
         # intersection points with each other
@@ -147,14 +140,29 @@ class FilledTri():
         # breaks for neighbor aware alg
         self.breaks = [ends[1],ends[2],ends[0]]
 
-        # s
-        s_line = Line(ends[0],ends[1])
-        self.s = s_line.L
+        # data about lines for expanded version
+        # s - formula from Chen 2021 appendix ii
+        self.s = (self.L-3*t)*math.cos(torad(theta))+(3**.5)*(t-self.L)*math.sin(torad(theta))
+
+        # extra bit that is added when expanded
+        self.gap = 2*self.s*math.sin(torad(30+theta))
+        self.expL = self.L + self.gap
 
         # expansion ratio
-        close_A = 3*(3**.5)*.5*(L)**2
-        exp_A= 3*(3**.5)*.5*(L+2*self.s*math.sin(torad(30+theta)))**2
+        close_A = 3*(3**.5)*.5*(self.L)**2
+        exp_A= 3*(3**.5)*.5*(self.expL)**2
         self.E = exp_A/close_A
+
+    @classmethod
+    def expanded(self,pt,expL,t,theta,dir):
+        rad = torad(theta)
+        radW30 = torad(theta+30)
+        numer = expL+6*t*math.cos(rad)*math.sin(radW30)-2*(3**.5)*t*math.sin(rad)*math.sin(radW30)
+        denom = 1+2*math.cos(rad)*math.sin(radW30)-2*(3**.5)*math.sin(rad)*math.sin(radW30)
+        self.L = numer/denom
+
+        self.s = (self.L-3*t)*math.cos(rad)+(3**.5)*(t-self.L)*math.sin(rad)
+
 
     def draw_outline(self,dwg):
         for i in range(3):
@@ -207,10 +215,10 @@ class TriGrid():
             self.grid_pts[i]=grid_pts_row
             self.tris[i]=tris_row
 
-    def add_tri(self,x,y,t,theta,dir):
+    def add_tri(self,x,y,t,theta,HINGE_T,dir):
         print(f"grid: adding {dir} tri to {x}, {y} position")
         pt = self.grid_pts[x][y]
-        tri = FilledTri(pt,self.L,t,theta,dir)
+        tri = FilledTri(pt,self.L,t,theta,HINGE_T,dir)
         self.tris[x][y][dir]=tri
 
     def meld_neighbors(self):
@@ -219,8 +227,8 @@ class TriGrid():
         # neighbor cut order
         nei_cuts = [2,0,1]
 
-        for i in range(nX):
-            for j in range(nY):
+        for i in range(self.nX):
+            for j in range(self.nY):
                 print(f"melding neighbors of ({i},{j})")
                 # # up tri
                 me = self.tris[i][j]["up"]
@@ -269,60 +277,3 @@ class TriGrid():
                 if(self.tris[i][j]["down"]):
                     self.tris[i][j]["down"].draw_outline(dwg)
                     self.tris[i][j]["down"].draw_cuts(dwg)
-
-nX = 5
-nY = 5                 
-dwg = sw.Drawing(f'nei_alg_test_hexagon.svg',profile='tiny')
-
-# set up grid
-grid = TriGrid(L,nX,nY)
-
-# # add triangles to grid
-# for i in range(nX):
-#     for j in range(nY):
-#         grid.add_tri(i,j,t+i*j*2.5,theta+5,"up")
-#         grid.add_tri(i,j,t+i*j*2.5,theta+5,"down")
-
-t_s = 10
-theta_s = todeg(.2142)
-
-t_b = 3
-theta_b = todeg(.0952)
-
-# smalls
-grid.add_tri(0,3,t_s,theta_s,'up')
-grid.add_tri(0,3,t_s,theta_s,'down')
-grid.add_tri(1,3,t_s,theta_s,'up')
-grid.add_tri(1,3,t_s,theta_s,'down')
-grid.add_tri(2,3,t_s,theta_s,'up')
-grid.add_tri(0,2,t_s,theta_s,'up')
-grid.add_tri(0,2,t_s,theta_s,'down')
-grid.add_tri(2,2,t_s,theta_s,'down')
-grid.add_tri(3,2,t_s,theta_s,'up')
-grid.add_tri(0,1,t_s,theta_s,'down')
-grid.add_tri(1,1,t_s,theta_s,'up')
-grid.add_tri(3,1,t_s,theta_s,'up')
-grid.add_tri(3,1,t_s,theta_s,'down')
-grid.add_tri(1,0,t_s,theta_s,'down')
-grid.add_tri(2,0,t_s,theta_s,'up')
-grid.add_tri(2,0,t_s,theta_s,'down')
-grid.add_tri(3,0,t_s,theta_s,'up')
-grid.add_tri(3,0,t_s,theta_s,'down')
-
-# bigs
-grid.add_tri(1,2,t_b,theta_b,'up')
-grid.add_tri(1,2,t_b,theta_b,'down')
-grid.add_tri(2,2,t_b,theta_b,'up')
-grid.add_tri(1,1,t_b,theta_b,'down')
-grid.add_tri(2,1,t_b,theta_b,'up')
-grid.add_tri(2,1,t_b,theta_b,'down')
-
-
-grid.meld_neighbors()
-
-# draw the grid onto the drawing we set up
-# grid.draw_grid(dwg)
-grid.draw_pattern(dwg)
-
-dwg.save()
-
