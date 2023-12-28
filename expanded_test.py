@@ -26,4 +26,7 @@ for i in range(nX):
 grid.meld_expanded_neighbors()
 grid.draw_pattern(dwg)
 
+test = FilledTri.compressed(origin,1,.05,torad(-.0238),HINGE_T,'up')
+print(test.expL)
+
 dwg.save()
